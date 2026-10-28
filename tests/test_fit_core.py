@@ -269,6 +269,37 @@ def test_dho_per_pixel_irf_falls_back_to_plain_where_absent():
     assert params[1, 1, 2] == pytest.approx(0.6, abs=0.1)  # an IRF pixel recovers the intrinsic width
 
 
+def test_dho_keeps_zero_count_channels_on_poisson_data():
+    # Raw photon counts: most wing channels are legitimately 0. Dropping them biased the
+    # fit towards a positive background and a too-narrow line (HWHM -9 %, bg ~0.8).
+    from brillouinpy.core import SpectralContainer
+    rng = np.random.default_rng(0)
+    axis = np.linspace(-21.1, 21.1, 1024)
+    truth = [16.0, 7.57, 0.30, 0.0, 0.0]
+    counts = rng.poisson(_DHO_1(axis, *truth), size=(200, 1, 1, 1, axis.size)).astype(float)
+    counts[..., np.abs(axis) < 4] = np.nan  # blanked elastic region
+
+    params, _ = DHO(expected_peaks=1, p0=[20, 7.6, 0.3, 0.1, 0.0],
+                    bounds=([0, 0, 0, -10, -1], [np.inf, 9, 2, np.inf, 1])).apply(
+        SpectralContainer(counts, axis))
+    params = params.reshape(-1, 5)
+
+    assert np.mean(counts[~np.isnan(counts)] == 0) > 0.5  # the regime this guards
+    assert np.mean(params[:, 2]) == pytest.approx(truth[2], rel=0.02)
+    assert abs(np.mean(params[:, 3])) < 0.05
+
+
+def test_dho_all_zero_pixel_yields_nan():
+    axis = np.linspace(-15, 15, 200)
+    data = np.tile(_DHO_1(axis, 1.0, 6.0, 0.5, 0.05, 0.0), (2, 2, 1))
+    data[0, 0] = 0.0
+    params, _ = DHO(expected_peaks=1, p0=[1.0, 6.0, 0.5, 0.05, 0.0],
+                    bounds=([0, 3, 0.05, -1, -1], [10, 14, 5, 2, 1])).apply(SpectralImage(data, axis))
+
+    assert np.all(np.isnan(params[0, 0]))
+    assert params[1, 1, 2] == pytest.approx(0.5, abs=0.01)
+
+
 # --- automatic peak-count selection (expected_peaks='auto') -------------------
 
 def _multi_mode_image(shifts, linewidths, nx=8, ny=8, n_channels=250, noise=3e-4, seed=0):

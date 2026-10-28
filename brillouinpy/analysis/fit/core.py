@@ -49,17 +49,14 @@ def _resolve_max_workers(max_workers):
 
 
 def _prep_pixel_spectrum(intensity_data_slice):
-    """One pixel's spectrum as a plain float array with masked / zero channels set
-    to NaN (``curve_fit(nan_policy='omit')`` then drops them). Returns ``None`` if
-    the pixel has no usable channel."""
-    if np.ma.is_masked(intensity_data_slice):
-        if np.ma.getmaskarray(intensity_data_slice).all():
-            return None
-        y = np.ma.filled(intensity_data_slice, np.nan).astype(float)
-    else:
-        y = np.asarray(intensity_data_slice, dtype=float).copy()
-    y[y == 0] = np.nan
-    if np.all(np.isnan(y)):
+    """One pixel's spectrum as a plain float array with masked channels set to NaN
+    (``curve_fit(nan_policy='omit')`` then drops them). Zero counts are valid data
+    (on raw photon-counting spectra most wing channels are legitimately 0) and are
+    kept; channels to exclude must be blanked explicitly (NaN / masked, e.g. by
+    ``IRF_Remover``). Returns ``None`` if the pixel has no usable channel or no
+    counts at all (an empty / padding pixel)."""
+    y = np.ma.filled(intensity_data_slice, np.nan).astype(float)
+    if not np.any(y[np.isfinite(y)]):
         return None
     return y
 

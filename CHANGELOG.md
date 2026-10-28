@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Zero-count channels are no longer dropped from fits.** `_prep_pixel_spectrum`
+  (`analysis/fit/core.py`) used to turn every 0 into `NaN`. On raw photon-counting data
+  most wing channels are legitimately 0, so this biased fits towards a positive background
+  and a too-narrow line (synthetic Poisson test: HWHM −9 %, background +0.8 counts;
+  affects `DHO(irf='auto')` on raw TFP data in particular). Only masked / `NaN` channels
+  are excluded now. A pixel with no counts at all still yields `NaN` parameters.
+- **`IRF_Remover`** now sets removed channels to `NaN` instead of 0 (like
+  `Deconvoluter_IRF`), works on any spatial dimensionality (incl. the raw
+  `(x, y, z, t, spectral)` shape), clips `start - offset` at 0 instead of wrapping around,
+  and accepts the documented `offset=None` (`Deconvoluter_IRF` too).
+
+### Changed
+- **Behaviour change:** on raw TFP data the shutter-blocked channels (exactly 0) were
+  previously dropped implicitly by the zero→`NaN` rule. They now count as data unless
+  blanked explicitly, e.g. by choosing an `IRF_Remover`/`Deconvoluter_IRF` `offset` that
+  covers them, or by masking / `Cropper`.
+
 ## [0.6.0] - 2026-09-21
 
 ### Added

@@ -101,6 +101,43 @@ def test_irf_remover_store_irf_attaches_per_pixel_irf():
         image).instrument_response_function is None
 
 
+def test_irf_remover_blanks_to_nan_and_keeps_zeros_elsewhere():
+    data, axis = _spectrum_with_irf()
+    data[:5] = 0  # genuine zero counts far from the IRF
+    result = IRF_Remover(offset=2, store_irf=False).apply(Spectrum(data, axis))
+
+    assert np.all(np.isnan(result.spectral_data[45:55]))
+    assert np.all(result.spectral_data[:5] == 0)
+    assert not np.any(np.isnan(result.spectral_data[:40]))
+
+
+def test_irf_remover_works_on_raw_5d_shape():
+    data, axis = _spectrum_with_irf()
+    volume_data = np.tile(data, (2, 2, 1, 3, 1))
+    result = IRF_Remover(offset=2, store_irf=True).apply(SpectralContainer(volume_data, axis))
+
+    assert result.spectral_data.shape == volume_data.shape
+    assert np.all(np.isnan(result.spectral_data[1, 0, 0, 2, 45:55]))
+    assert result.instrument_response_function.shape == volume_data.shape
+
+
+def test_irf_remover_offset_none_and_no_wraparound():
+    # IRF right at the start of the array: start - offset < 0 must not wrap to the end
+    n_channels = 100
+    axis = np.linspace(-20, 20, n_channels)
+    data = 0.1 * np.ones(n_channels)
+    data[:4] = [5.0, 3.0, 1.0, 0.5]
+    data[4] = 0
+
+    clipped = IRF_Remover(offset=10, store_irf=False).apply(Spectrum(data, axis))
+    assert np.all(np.isnan(clipped.spectral_data[:14]))
+    assert not np.any(np.isnan(clipped.spectral_data[14:]))
+
+    bare = IRF_Remover(offset=None, store_irf=False).apply(Spectrum(data, axis))
+    assert np.all(np.isnan(bare.spectral_data[:4]))
+    assert not np.any(np.isnan(bare.spectral_data[4:]))
+
+
 def test_cropper_would_invalidate_stored_irf(recwarn):
     from brillouinpy.preprocessing.misc import Cropper
     data, axis = _spectrum_with_irf()
