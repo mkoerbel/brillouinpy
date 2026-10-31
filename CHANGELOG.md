@@ -18,6 +18,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `loss='squares'` stays the default, so existing results are unchanged.
 
 ### Fixed
+- **`utils.brillouin_spectral_axis` channel spacing is now `2L/N` instead of `2L/(N−1)`.**
+  The axis was built with `np.linspace(-L, L, N)`, which puts the outermost channels
+  exactly at ±L. According to the TFP and GHOST manuals, however, the scan range `2L` is
+  divided into `N` channels of equal duration. The axis now returns the channel centres,
+  symmetric about 0 (the old axis × (N−1)/N). Previously, all frequency parameters (BFS,
+  linewidth, spectral offset) came out too large by N/(N−1): +0.4 % at 256, +0.2 % at
+  512 and +0.1 % at 1024 channels (water: ≈ +30 / +15 / +7 MHz on 7.58 GHz). This also
+  produced a spurious BFS offset between measurements with different channel counts
+  (water, 256 vs 1024 channels: 21 MHz before the fix, < 1 MHz after).
+  `io.tfp.brillouin_spectral_axis_from_meta` is affected the same way. **Results change
+  for existing data**, so re-run the fits for any values you want to compare with
+  previously analysed data.
 - **Zero-count channels are no longer dropped from fits.** `_prep_pixel_spectrum`
   (`analysis/fit/core.py`) used to turn every 0 into `NaN`. On raw photon-counting data
   most wing channels are legitimately 0, so this biased fits towards a positive background

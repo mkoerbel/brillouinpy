@@ -98,6 +98,21 @@ def test_brillouin_scan_parameters_from_meta_unrecognised_schema_raises():
         tfp._brillouin_scan_parameters_from_meta(UNRECOGNISED_META)
 
 
+@pytest.mark.parametrize("no_of_channels", [255, 256, 512, 1024])
+def test_brillouin_spectral_axis_channel_width_is_scan_range_over_n(no_of_channels):
+    axis = utils.brillouin_spectral_axis(
+        mirror_spacing=6e-3, scan_amplitude=480e-9, no_of_channels=no_of_channels,
+        laser_wavelength=532.1e-9,
+    )
+    half_range_GHz = utils.fsr(6e-3) * 480e-9 / 532.1e-9 * 1e-9
+
+    assert axis.shape == (no_of_channels,)
+    assert np.allclose(np.diff(axis), 2 * half_range_GHz / no_of_channels)
+    assert np.allclose(axis, -axis[::-1])
+    # Channel centres sit half a channel inside the scan limits.
+    assert axis[-1] == pytest.approx(half_range_GHz * (no_of_channels - 1) / no_of_channels)
+
+
 def test_brillouin_spectral_axis_from_meta_matches_manual_call(tmp_path):
     _write_meta(tmp_path / "META.json", NESTED_META)
 
