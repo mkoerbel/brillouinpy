@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Poisson maximum-likelihood fitting (`loss='poisson'`)** on `DHO`, `Lorentzian`,
+  `Gaussian` and `PeakFit` for raw photon-counting spectra. Each pixel is first fitted by
+  least squares, then refined by minimising the Poisson negative log-likelihood (L-BFGS-B).
+  The returned covariance is the inverse Fisher information. On synthetic Poisson DHO
+  spectra the shift / linewidth scatter reaches the Cramér-Rao bound (least squares:
+  +14 % / +38 % above it). Works with `irf=` (1-D and per pixel). A negative `Background`
+  lower bound is clipped to 0, and non-count input triggers a warning.
+  `expected_peaks='auto'` with `loss='poisson'` raises `NotImplementedError`.
+  `loss='squares'` stays the default, so existing results are unchanged.
+
 ### Fixed
 - **Zero-count channels are no longer dropped from fits.** `_prep_pixel_spectrum`
   (`analysis/fit/core.py`) used to turn every 0 into `NaN`. On raw photon-counting data

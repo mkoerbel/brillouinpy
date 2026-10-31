@@ -113,6 +113,45 @@ carries one extra trailing value, `elastic_slope`. Blanking the elastic channels
 (`preprocessing.misc.IRF_Remover`) and using the plain model is still preferable
 where possible; `elastic=True` is incompatible with `irf=`.
 
+## Raw photon counts: `loss='poisson'`
+
+By default every fit is unweighted least squares (`loss='squares'`). That is the
+best estimator only when the noise has the same variance in every channel. Raw TFP
+spectra are photon counts, which are Poisson-distributed: the variance equals the
+expected count, so it is ~16 at the peak but only ~0.1-0.3 in the wings, where most
+channels hold 0 or 1 count. Least squares weights all channels equally and so
+largely ignores the low-count wings, which carry most of the linewidth information.
+
+`loss='poisson'` (on `DHO`, `Lorentzian`, `Gaussian` and `PeakFit`) instead
+minimises the Poisson negative log-likelihood `sum(mu_k - y_k ln mu_k)` over the
+finite channels, starting from the least-squares solution:
+
+```python
+dho_fit = bp.analysis.fit.DHO(expected_peaks=1, p0=p0, bounds=bounds, irf='auto', loss='poisson')
+```
+
+This maximum-likelihood fit reaches the Cramér-Rao bound, the lowest scatter any
+unbiased estimator can achieve. On single TFP spectra of water (512 ms, IRF-convolved
+DHO), it reduces the standard deviation of the shift by ~14 % and of the linewidth
+by ~30 % compared with least squares. Least squares would need ~1.35× (shift) and
+~2× (linewidth) the measurement time to match. The returned covariance is the
+inverse Fisher information, which predicts the actual scatter of the estimate.
+On count data, the least-squares covariance from `curve_fit` underestimates it
+considerably.
+
+- **Only for raw counts**, e.g. straight from `prepare_brillouin_data`, possibly with
+  the elastic channels blanked by `IRF_Remover`. Sums of spectra are still Poisson.
+  After `Deconvoluter_IRF`, normalisation, background subtraction or averaging the
+  noise is no longer Poisson, so stay with `loss='squares'`. A warning flags
+  non-integer or negative input.
+- The expected count must stay positive, so a negative lower bound on `Background`
+  is clipped to 0 (with a warning).
+- Because the wings carry more weight, the Poisson fit is also more sensitive to
+  model mismatch there (IRF truncation, scan nonlinearity). If the two losses give
+  noticeably different mean linewidths on real data while they agree on simulated
+  data, the lineshape model is the likely cause, not the estimator.
+- Not yet available with `expected_peaks='auto'`.
+
 ## Adding your own lineshape
 
 The families above are entries in a registry. To fit a lineshape that is not
