@@ -48,6 +48,11 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[codz]
+*$py.class
+
 # Translations
 *.mo
 *.pot
