@@ -753,6 +753,7 @@ def from_brim(filepath: str, *, index: int = 0) -> core.SpectralObject:
     try:
         data_group = f.get_data(index)
         PSD, frequency, _psd_units, _frequency_units = data_group.get_PSD_as_spatial_map(broadcast_frequency=False)
+        PSD, frequency = brim.Data.interpolate_spectra(PSD, frequency) # In case frequency is not 1D, interpolate here to generate 1D array
 
         try:
             raw_metadata = data_group.get_metadata().all_to_dict()

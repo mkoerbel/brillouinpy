@@ -32,7 +32,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # 'brim' export/import (io.export.to_brim/from_brim) needs Python >= 3.11
-brim = ["brimfile"]
+brim = ["brimfile>=1.7.5"]
 # Needs Python >= 3.12: HDF5_BLS's own code uses nested same-quote f-strings,
 # which is a SyntaxError on 3.10/3.11.
 hdf5_bls = ["HDF5_BLS; python_version >= '3.12'"]
@@ -46,7 +46,7 @@ unmix-eea = ["pysptools"]
 test = [
     "pytest",
     "pytest-cov",
-    "brimfile; python_version >= '3.11'",
+    "BrillouinPy[brim]",
     "HDF5_BLS; python_version >= '3.12'",
     # Only for tests/test_ramanspy_interop.py, which checks the duck-typing
     # compatibility with RamanSPy that docs/design/multimodal_container.md claims;
