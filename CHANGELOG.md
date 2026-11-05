@@ -46,6 +46,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   previously dropped implicitly by the zero→`NaN` rule. They now count as data unless
   blanked explicitly, e.g. by choosing an `IRF_Remover`/`Deconvoluter_IRF` `offset` that
   covers them, or by masking / `Cropper`.
+- **Python 3.10 is no longer supported.** BrillouinPy now requires Python >= 3.11, the
+  minimum `brimfile` needs. Python 3.10 has reached its end of life.
 
 ## [0.6.0] - 2026-09-21
 
