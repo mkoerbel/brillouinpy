@@ -21,7 +21,7 @@ reloaded = bp.io.from_hdf5_bls('pp_data/brillouin_data.h5')
 # The brim format (https://github.com/brillouin-imaging/Brillouin-standard-file),
 # a Zarr-based standard also readable by the napari/Fiji brim viewer plugins and
 # by BrimView, no installation needed (requires the optional 'brimfile' package:
-# pip install brimfile; needs Python >= 3.11)
+# pip install brimfile)
 bp.io.to_brim(
     preprocessed_image, 'pp_data/brillouin_data.brim.zarr',
     fit_result=fitted_parameters, expected_peaks=1,

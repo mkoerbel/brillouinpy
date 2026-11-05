@@ -2,7 +2,7 @@
 
 The instructions below use [Anaconda](https://www.anaconda.com/download/success) as
 the Python distribution, recommended if you are new to Python. Any other Python
-≥ 3.10 environment works just as well.
+≥ 3.11 environment works just as well.
 
 ```{note}
 Unless you have a specific reason to upgrade, keep your conda installation as-is -
@@ -58,7 +58,7 @@ pip install "brillouinpy[brim] @ git+https://github.com/timm-landes/brillouinpy.
 ```
 
 - `brim` - read/write the [brim](https://github.com/brillouin-imaging/Brillouin-standard-file)
-  format (`brimfile`; needs Python ≥ 3.11).
+  format (`brimfile`).
 - `hdf5_bls` - read/write the [HDF5_BLS](https://github.com/bio-brillouin/HDF5_BLS)
   format.
 

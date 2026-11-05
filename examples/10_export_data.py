@@ -18,7 +18,7 @@ Shows how to export processed data and fit results to formats other tools can re
   `Fiji <https://github.com/brillouin-imaging/brillouin-imaging-fiji>`_ brim viewer
   plugins, and by `BrimView <https://github.com/brillouin-imaging/BrimView>`_
   (no installation needed). Requires the optional ``brimfile`` package
-  (``pip install brimfile``; needs Python >= 3.11).
+  (``pip install brimfile``).
 
 Continues from ``03_preprocess_data.py`` and ``09_fit_spectra.py``: run those first
 to get ``pp_data/preprocessed_image.pkl`` and ``pp_data/fitted_parameters.npy``,

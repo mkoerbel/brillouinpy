@@ -24,7 +24,7 @@ sphinx-build -b html docs docs/_build/html
 Then open `docs/_build/html/index.html` in your browser.
 
 ## Installation
-The instructions below use [Anaconda](https://www.anaconda.com/download/success) as the Python distribution, which is recommended if you are new to Python. Any other Python ≥ 3.10 environment works just as well.
+The instructions below use [Anaconda](https://www.anaconda.com/download/success) as the Python distribution, which is recommended if you are new to Python. Any other Python ≥ 3.11 environment works just as well.
 
 ### Prerequisites
  1. Install Anaconda: [download](https://www.anaconda.com/download/success).
