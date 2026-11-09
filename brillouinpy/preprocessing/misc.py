@@ -53,6 +53,11 @@ class IRF_Remover(PreprocessingStep):
     """
     Remove the intensity values corresponding to the Instrument Response Function (IRF) including an optional little offset.
 
+    The removed channels are set to ``numpy.nan`` (not 0), so fits drop them while genuine
+    zero-count channels elsewhere in the spectrum are kept as data. On raw TFP data choose
+    ``offset`` large enough to also cover the shutter-blocked channels next to the IRF.
+    Works on any spatial dimensionality, including the raw ``(x, y, z, t, spectral)`` shape.
+
     Parameters
     ----------
     offset : number of spectral channels which gets removed
@@ -148,14 +153,23 @@ def _get_indices_to_leave(spectral_axis, region):
     return indices_to_leave
 
 def _irf_remove(intensity_data, spectral_axis, offset, store_irf=True):
-    corrected_intensity_data = np.copy(intensity_data)
-    spectral_response = np.zeros(intensity_data.shape)
+    '''
+    Blank the Instrumental Response Function (IRF) plus ``offset`` channels on each side
+    to ``numpy.nan`` (like :func:`_deconvolute_irf`, so the fit drops them while genuine
+    zero counts stay in). Works on any spatial dimensionality.
+    '''
+    raw = np.ma.filled(intensity_data, 0).astype(float)
+    corrected_intensity_data = np.ma.filled(intensity_data, np.nan).astype(float)
+    spectral_response = np.zeros(raw.shape)
+    n_channels = raw.shape[-1]
+    offset = offset or 0
 
-    for x in range(corrected_intensity_data.shape[0]):
-        for y in range(corrected_intensity_data.shape[1]):
-            start, end = _find_instrumental_response(intensity_data[x, y, :])
-            spectral_response[x, y, start:end] = intensity_data[x, y, start:end]
-            corrected_intensity_data[x, y, start-offset:end+offset] = 0
+    for idx in np.ndindex(raw.shape[:-1]):
+        start, end = _find_instrumental_response(raw[idx])
+        spectral_response[idx + (slice(start, end),)] = raw[idx + (slice(start, end),)]
+        corrected_intensity_data[
+            idx + (slice(max(0, start - offset), min(n_channels, end + offset)),)
+        ] = np.nan
 
     if store_irf:
         return corrected_intensity_data, spectral_axis, spectral_response
@@ -186,6 +200,7 @@ def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations=4, paddin
     spatial_shape = intensity_data.shape[:-1]
     n_channels = intensity_data.shape[-1]
     pad = padding or 0
+    offset = offset or 0
 
     for idx in np.ndindex(spatial_shape):
         pixel_spectrum = intensity_data[idx + (slice(None),)]

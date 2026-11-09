@@ -7,7 +7,7 @@ name = "BrillouinPy"
 version = "0.6.0"
 description = "Brillouin light scattering data analysis (formerly BrillouinAnalyzer), architecturally inspired by RamanSPy (see NOTICE.md)"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "BSD-3-Clause"
 license-files = ["LICENSE", "NOTICE.md", "THIRD_PARTY_LICENSES/*"]
 authors = [
@@ -15,7 +15,6 @@ authors = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
@@ -34,15 +33,14 @@ dependencies = [
 # 'brim' export/import (io.export.to_brim/from_brim) needs Python >= 3.11
 brim = ["brimfile>=1.7.6"]
 # Needs Python >= 3.12: HDF5_BLS's own code uses nested same-quote f-strings,
-# which is a SyntaxError on 3.10/3.11.
+# a SyntaxError on 3.11 in the latest release (1.1.0). Fixed upstream, not released yet.
 hdf5_bls = ["HDF5_BLS; python_version >= '3.12'"]
 # Only the PPI / FIPPI / NFINDR endmember-extraction methods in analysis.unmix
 # need this; VCA and all abundance methods are pure NumPy/SciPy.
 unmix-eea = ["pysptools"]
-# Everything needed to run the full test suite. The export backends only ship
-# wheels for Python >= 3.11, so on 3.10 the corresponding tests skip themselves.
-# HDF5_BLS additionally needs >= 3.12: its own code uses nested same-quote
-# f-strings, which is a SyntaxError on 3.10/3.11.
+# Everything needed to run the full test suite. HDF5_BLS needs Python >= 3.12 for
+# now (see the `hdf5_bls` extra above), so on 3.11 the corresponding tests skip
+# themselves.
 test = [
     "pytest",
     "pytest-cov",

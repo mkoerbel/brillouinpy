@@ -6,8 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Fixed 
-- Importing brimfile data via `from_brim` with non-unique frequency axes no longer causes an error because the spectral axis is expected to be 1D. The frequency axes will be interpolated if the used brimfile version >= 1.7.6, otherwise return `AttributeError`.
+### Added
+- **Poisson maximum-likelihood fitting (`loss='poisson'`)** on `DHO`, `Lorentzian`,
+  `Gaussian` and `PeakFit` for raw photon-counting spectra. Each pixel is first fitted by
+  least squares, then refined by minimising the Poisson negative log-likelihood (L-BFGS-B).
+  The returned covariance is the inverse Fisher information. On synthetic Poisson DHO
+  spectra the shift / linewidth scatter reaches the Cramér-Rao bound (least squares:
+  +14 % / +38 % above it). Works with `irf=` (1-D and per pixel). A negative `Background`
+  lower bound is clipped to 0, and non-count input triggers a warning.
+  `expected_peaks='auto'` with `loss='poisson'` raises `NotImplementedError`.
+  `loss='squares'` stays the default, so existing results are unchanged.
+
+### Fixed
+- **`utils.brillouin_spectral_axis` channel spacing is now `2L/N` instead of `2L/(N−1)`.**
+  The axis was built with `np.linspace(-L, L, N)`, which puts the outermost channels
+  exactly at ±L. According to the TFP and GHOST manuals, however, the scan range `2L` is
+  divided into `N` channels of equal duration. The axis now returns the channel centres,
+  symmetric about 0 (the old axis × (N−1)/N). Previously, all frequency parameters (BFS,
+  linewidth, spectral offset) came out too large by N/(N−1): +0.4 % at 256, +0.2 % at
+  512 and +0.1 % at 1024 channels (water: ≈ +30 / +15 / +7 MHz on 7.58 GHz). This also
+  produced a spurious BFS offset between measurements with different channel counts
+  (water, 256 vs 1024 channels: 21 MHz before the fix, < 1 MHz after).
+  `io.tfp.brillouin_spectral_axis_from_meta` is affected the same way. **Results change
+  for existing data**, so re-run the fits for any values you want to compare with
+  previously analysed data.
+- **Zero-count channels are no longer dropped from fits.** `_prep_pixel_spectrum`
+  (`analysis/fit/core.py`) used to turn every 0 into `NaN`. On raw photon-counting data
+  most wing channels are legitimately 0, so this biased fits towards a positive background
+  and a too-narrow line (synthetic Poisson test: HWHM −9 %, background +0.8 counts;
+  affects `DHO(irf='auto')` on raw TFP data in particular). Only masked / `NaN` channels
+  are excluded now. A pixel with no counts at all still yields `NaN` parameters.
+- **`IRF_Remover`** now sets removed channels to `NaN` instead of 0 (like
+  `Deconvoluter_IRF`), works on any spatial dimensionality (incl. the raw
+  `(x, y, z, t, spectral)` shape), clips `start - offset` at 0 instead of wrapping around,
+  and accepts the documented `offset=None` (`Deconvoluter_IRF` too).
+- **'from_brim' now handles nD frequency axes.** Importing brimfile data via `from_brim` 
+  with non-unique frequency axes no longer causes an error because the spectral axis is 
+  expected to be 1D. The frequency axes will be interpolated if the used brimfile 
+  version >= 1.7.6, otherwise return `AttributeError`.
+
+
+### Changed
+- **Behaviour change:** on raw TFP data the shutter-blocked channels (exactly 0) were
+  previously dropped implicitly by the zero→`NaN` rule. They now count as data unless
+  blanked explicitly, e.g. by choosing an `IRF_Remover`/`Deconvoluter_IRF` `offset` that
+  covers them, or by masking / `Cropper`.
+- **Python 3.10 is no longer supported.** BrillouinPy now requires Python >= 3.11, the
+  minimum `brimfile` needs. Python 3.10 has reached its end of life.
 
 ## [0.6.0] - 2026-09-21
 

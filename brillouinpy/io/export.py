@@ -344,7 +344,7 @@ def _open_brim():
         raise ImportError(
             "Reading/writing the brim format requires the 'brimfile' package "
             "(https://github.com/brillouin-imaging/brimfile). Install it with "
-            "'pip install brimfile' (requires Python >= 3.11)."
+            "'pip install brimfile'."
         ) from exc
     return brim
 
@@ -490,7 +490,7 @@ def to_brim(
     (https://github.com/brillouin-imaging/brimfile) Python library and the
     napari/Fiji brim viewer plugins.
 
-    Requires the ``brimfile`` package (``pip install brimfile``; needs Python >= 3.11).
+    Requires the ``brimfile`` package (``pip install brimfile``).
 
     Parameters
     ----------
@@ -722,7 +722,7 @@ def from_brim(filepath: str, *, index: int = 0) -> core.SpectralObject:
     brillouinpy spectral object, ready for further processing (preprocessing
     pipelines, fitting, ...).
 
-    Requires the ``brimfile`` package (``pip install brimfile``; needs Python >= 3.11).
+    Requires the ``brimfile`` package (``pip install brimfile``).
 
     Parameters
     ----------

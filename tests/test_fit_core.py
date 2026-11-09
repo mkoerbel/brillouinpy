@@ -269,6 +269,171 @@ def test_dho_per_pixel_irf_falls_back_to_plain_where_absent():
     assert params[1, 1, 2] == pytest.approx(0.6, abs=0.1)  # an IRF pixel recovers the intrinsic width
 
 
+def test_dho_keeps_zero_count_channels_on_poisson_data():
+    # Raw photon counts: most wing channels are legitimately 0. Dropping them biased the
+    # fit towards a positive background and a too-narrow line (HWHM -9 %, bg ~0.8).
+    from brillouinpy.core import SpectralContainer
+    rng = np.random.default_rng(0)
+    axis = np.linspace(-21.1, 21.1, 1024)
+    truth = [16.0, 7.57, 0.30, 0.0, 0.0]
+    counts = rng.poisson(_DHO_1(axis, *truth), size=(200, 1, 1, 1, axis.size)).astype(float)
+    counts[..., np.abs(axis) < 4] = np.nan  # blanked elastic region
+
+    params, _ = DHO(expected_peaks=1, p0=[20, 7.6, 0.3, 0.1, 0.0],
+                    bounds=([0, 0, 0, -10, -1], [np.inf, 9, 2, np.inf, 1])).apply(
+        SpectralContainer(counts, axis))
+    params = params.reshape(-1, 5)
+
+    assert np.mean(counts[~np.isnan(counts)] == 0) > 0.5  # the regime this guards
+    assert np.mean(params[:, 2]) == pytest.approx(truth[2], rel=0.02)
+    assert abs(np.mean(params[:, 3])) < 0.05
+
+
+def test_dho_all_zero_pixel_yields_nan():
+    axis = np.linspace(-15, 15, 200)
+    data = np.tile(_DHO_1(axis, 1.0, 6.0, 0.5, 0.05, 0.0), (2, 2, 1))
+    data[0, 0] = 0.0
+    params, _ = DHO(expected_peaks=1, p0=[1.0, 6.0, 0.5, 0.05, 0.0],
+                    bounds=([0, 3, 0.05, -1, -1], [10, 14, 5, 2, 1])).apply(SpectralImage(data, axis))
+
+    assert np.all(np.isnan(params[0, 0]))
+    assert params[1, 1, 2] == pytest.approx(0.5, abs=0.01)
+
+
+# --- Poisson maximum likelihood (loss='poisson') -------------------------------
+
+_POISSON_AXIS = np.linspace(-21.1, 21.1, 1024)
+_POISSON_WINDOW = (np.abs(_POISSON_AXIS) > 4) & (np.abs(_POISSON_AXIS) < 15)
+_POISSON_TRUTH = np.array([16.0, 7.57, 0.30, 0.0, 0.0])  # ~750 counts per spectrum, no background
+_POISSON_BOUNDS = ([0, 0, 0, 0, -1], [np.inf, 9, 2, np.inf, 1])
+
+
+def _poisson_counts(model, n_spectra, seed):
+    """Poisson count spectra of ``model`` at the truth, blanked outside the fit window."""
+    counts = np.random.default_rng(seed).poisson(
+        model(_POISSON_AXIS, *_POISSON_TRUTH), size=(n_spectra, _POISSON_AXIS.size)).astype(float)
+    counts[:, ~_POISSON_WINDOW] = np.nan
+    return counts
+
+
+def _cramer_rao_sd(model):
+    """Cramér-Rao lower bound on each parameter's SD for Poisson data at the truth."""
+    from brillouinpy.analysis.fit.core import _numeric_jacobian
+    x = _POISSON_AXIS[_POISSON_WINDOW]
+    mu = model(x, *_POISSON_TRUTH)
+    jac = _numeric_jacobian(model, x, _POISSON_TRUTH)
+    return np.sqrt(np.diag(np.linalg.inv(jac @ (jac / mu).T)))
+
+
+@pytest.fixture(scope="module")
+def plain_poisson_fits():
+    from brillouinpy.core import SpectralContainer
+    container = SpectralContainer(_poisson_counts(_DHO_1, 500, seed=10), _POISSON_AXIS)
+    fits = {}
+    for loss in ("squares", "poisson"):
+        params, cov = DHO(expected_peaks=1, p0=list(_POISSON_TRUTH), bounds=_POISSON_BOUNDS,
+                          loss=loss, max_workers=4).apply(container)
+        fits[loss] = (np.asarray(params), np.asarray(cov))
+    return fits
+
+
+def test_poisson_loss_reaches_cramer_rao_bound(plain_poisson_fits):
+    crb = _cramer_rao_sd(_DHO_1)
+    sd = {loss: params.std(axis=0, ddof=1) for loss, (params, _) in plain_poisson_fits.items()}
+
+    assert sd["poisson"][1] == pytest.approx(crb[1], rel=0.1)   # BFS
+    assert sd["poisson"][2] == pytest.approx(crb[2], rel=0.1)   # HWHM
+    assert sd["poisson"][1] < sd["squares"][1]
+    assert sd["poisson"][2] < 0.85 * sd["squares"][2]           # the wings carry the linewidth
+
+
+def test_poisson_loss_is_unbiased_and_pcov_is_inverse_fisher(plain_poisson_fits):
+    params, cov = plain_poisson_fits["poisson"]
+    shift = params[:, 1]
+    assert abs(shift.mean() - _POISSON_TRUTH[1]) < 3 * shift.std(ddof=1) / np.sqrt(shift.size)
+    # pcov is the inverse Fisher information, so it predicts the actual scatter
+    assert np.sqrt(np.median(cov[:, 1, 1])) == pytest.approx(shift.std(ddof=1), rel=0.15)
+    assert np.all(params[:, 3] >= 0)
+
+
+@pytest.mark.parametrize("per_pixel", [False, True])
+def test_poisson_loss_with_irf(per_pixel):
+    from brillouinpy.analysis.fit.core import _ConvolvedModel
+    from brillouinpy.core import SpectralContainer
+    # a measured-style IRF: a kernel embedded at the centre of a full-length array
+    k = irf_kernel(("lorentzian", 0.25), _POISSON_AXIS)
+    irf = np.zeros(_POISSON_AXIS.size)
+    lo = _POISSON_AXIS.size // 2 - k.size // 2
+    irf[lo:lo + k.size] = k
+    model = _ConvolvedModel(_DHO_1, irf_kernel(irf, _POISSON_AXIS), _POISSON_AXIS)
+
+    counts = _poisson_counts(model, 300, seed=11)
+    if per_pixel:
+        data = SpectralImage(counts.reshape(20, 15, -1), _POISSON_AXIS,
+                             instrument_response_function=np.tile(irf, (20, 15, 1)))
+        irf_arg = 'auto'
+    else:
+        data, irf_arg = SpectralContainer(counts, _POISSON_AXIS), irf
+
+    sd, shift = {}, None
+    for loss in ("squares", "poisson"):
+        params, _ = DHO(expected_peaks=1, p0=list(_POISSON_TRUTH), bounds=_POISSON_BOUNDS,
+                        irf=irf_arg, loss=loss, max_workers=4).apply(data)
+        params = np.asarray(params).reshape(-1, 5)
+        sd[loss] = params.std(axis=0, ddof=1)
+        shift = params[:, 1]
+
+    crb = _cramer_rao_sd(model)
+    assert sd["poisson"][1] == pytest.approx(crb[1], rel=0.15)
+    assert sd["poisson"][2] < 0.85 * sd["squares"][2]
+    assert abs(shift.mean() - _POISSON_TRUTH[1]) < 3 * shift.std(ddof=1) / np.sqrt(shift.size)
+
+
+def test_default_loss_is_least_squares_unchanged():
+    from scipy.optimize import curve_fit
+    rng = np.random.default_rng(12)
+    axis = np.linspace(-15, 15, 200)
+    data = _DHO_1(axis, 1.0, 6.0, 0.5, 0.05, 0.0) + rng.normal(scale=0.01, size=(3, 3, axis.size))
+    image = SpectralImage(data, axis)
+    kwargs = dict(expected_peaks=1, p0=[1.0, 6.0, 0.5, 0.05, 0.0],
+                  bounds=([0, 3, 0.05, -1, -1], [10, 14, 5, 2, 1]))
+
+    default, default_cov = DHO(**kwargs).apply(image)
+    squares, squares_cov = DHO(**kwargs, loss='squares').apply(image)
+    direct, _ = curve_fit(_DHO_1, axis, data[1, 2], p0=kwargs["p0"], bounds=kwargs["bounds"])
+
+    np.testing.assert_array_equal(default, squares)
+    np.testing.assert_array_equal(np.asarray(default_cov), np.asarray(squares_cov))
+    np.testing.assert_allclose(default[1, 2], direct, rtol=1e-12)
+
+
+def test_poisson_loss_clips_negative_background_bound_and_warns_on_non_counts():
+    from brillouinpy.core import SpectralContainer
+    counts = _poisson_counts(_DHO_1, 4, seed=13)
+    bounds = ([0, 0, 0, -10, -1], [np.inf, 9, 2, np.inf, 1])
+    p0 = [16.0, 7.57, 0.3, -0.5, 0.0]
+
+    with pytest.warns(UserWarning, match="non-negative Background"):
+        params, _ = DHO(expected_peaks=1, p0=p0, bounds=bounds, loss='poisson',
+                        max_workers=1).apply(SpectralContainer(counts, _POISSON_AXIS))
+    assert np.all(np.asarray(params)[:, 3] >= 0)
+
+    with pytest.warns(UserWarning, match="raw photon counts"):
+        DHO(expected_peaks=1, p0=list(_POISSON_TRUTH), bounds=_POISSON_BOUNDS, loss='poisson',
+            max_workers=1).apply(SpectralContainer(counts / counts[np.isfinite(counts)].max(),
+                                                   _POISSON_AXIS))
+
+
+def test_loss_validation():
+    from brillouinpy.analysis.fit.core import Gaussian, Lorentzian, PeakFit
+    for cls, extra in [(DHO, {}), (Lorentzian, {}), (Gaussian, {}), (PeakFit, {"model": "dho"})]:
+        with pytest.raises(ValueError, match="loss"):
+            cls(expected_peaks=1, loss='absolute', **extra)
+        cls(expected_peaks=1, loss='poisson', **extra)  # accepted
+    with pytest.raises(NotImplementedError, match="poisson"):
+        DHO(expected_peaks='auto', loss='poisson')
+
+
 # --- automatic peak-count selection (expected_peaks='auto') -------------------
 
 def _multi_mode_image(shifts, linewidths, nx=8, ny=8, n_channels=250, noise=3e-4, seed=0):

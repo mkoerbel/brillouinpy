@@ -154,10 +154,21 @@ def brillouin_spectral_axis(mirror_spacing, scan_amplitude, no_of_channels, lase
     -------
     numpy.ndarray
         The symmetric frequency-shift axis, in GHz, of length ``no_of_channels``.
+
+    Notes
+    -----
+    The scan spans ``2 * L`` with ``L = fsr * scan_amplitude / laser_wavelength``
+    and is divided into ``no_of_channels`` channels of equal duration (TFP manual
+    §4.9, §5.5; GHOST manual §3.1, §3.5.1). The returned values are the channel
+    centres, spaced by ``2 * L / no_of_channels`` and symmetric about 0, so the
+    outermost channels lie half a channel inside ``±L``. Whether 0 GHz falls on a
+    channel centre or between two channels is not specified by the manuals; this
+    does not affect fitted shifts, which carry their own spectral-offset parameter.
     """
     freq_limits = fsr(mirror_spacing) * scan_amplitude / laser_wavelength
     freq_limits_GHz = freq_limits * 1e-9
-    return np.linspace(-freq_limits_GHz, freq_limits_GHz, no_of_channels)
+    step = 2 * freq_limits_GHz / no_of_channels
+    return (np.arange(no_of_channels) - (no_of_channels - 1) / 2) * step
 
 
 def TFP_IRF_Analysis(intensity_data, spectral_axis):
