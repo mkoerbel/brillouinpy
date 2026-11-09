@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed 
+- Importing brimfile data via `from_brim` with non-unique frequency axes no longer causes an error because the spectral axis is expected to be 1D. The frequency axes will be interpolated if the used brimfile version >= 1.7.6, otherwise return `AttributeError`.
+
 ## [0.6.0] - 2026-09-21
 
 ### Added

@@ -32,7 +32,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # 'brim' export/import (io.export.to_brim/from_brim) needs Python >= 3.11
-brim = ["brimfile>=1.7.5"]
+brim = ["brimfile>=1.7.6"]
 # Needs Python >= 3.12: HDF5_BLS's own code uses nested same-quote f-strings,
 # which is a SyntaxError on 3.10/3.11.
 hdf5_bls = ["HDF5_BLS; python_version >= '3.12'"]

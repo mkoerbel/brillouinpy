@@ -264,3 +264,49 @@ def test_from_brim_missing_brimfile_raises_helpful_error(monkeypatch):
 
     with pytest.raises(ImportError, match="brimfile"):
         export.from_brim("does_not_matter.brim.zarr")
+
+
+def test_from_brim_nD_frequency_axis(tmp_path):
+    import brimfile as brim
+
+    # Create a data group with a slightly different frequency axis per pixel.
+    rng = np.random.default_rng(0)
+    axis = np.linspace(-20, 20, 60)
+    frequency = axis + rng.normal(scale=0.02, size=(4, 3, axis.size))
+    assert not np.allclose(frequency, frequency[0, 0])
+    PSD = np.empty_like(frequency)
+    for y in range(frequency.shape[0]):
+        for x in range(frequency.shape[1]):
+            PSD[y, x] = _dho(frequency[y, x], 5e-3, 8.5, 1.0)
+
+    filepath = str(tmp_path / "nD_spectrum.brim.zarr")
+    fake_brimfile = brim.File.create(filepath, store_type=brim.StoreType.AUTO)
+    try:
+        d = fake_brimfile.create_data_group(
+            PSD[np.newaxis, ...],
+            frequency[np.newaxis, ...],
+            px_size_um=(None, 1, 1),
+            name="data_0",
+        )
+        md = d.get_metadata()
+        md.add(
+            brim.Metadata.Type.Experiment,
+            {"Info": brim.Metadata.Item("fake brimfile")},
+        )
+        md.add(
+            brim.Metadata.Type.Experiment,
+            {"Temperature": brim.Metadata.Item(20.0, "C")},
+            local=True,
+        )
+    finally:
+        fake_brimfile.close()
+
+    brillimg = export.from_brim(filepath, index=0)
+
+    assert type(brillimg) is SpectralImage
+    assert brillimg.shape == (frequency.shape[1], frequency.shape[0])
+    assert brillimg.spectral_axis.ndim == 1
+    assert brillimg.spectral_data.shape[-1] == brillimg.spectral_axis.size
+    assert np.all(np.diff(brillimg.spectral_axis) > 0)
+    assert np.all(np.isfinite(np.ma.filled(brillimg.spectral_data, np.nan)))
+    assert np.any(brillimg.spectral_data != 0)

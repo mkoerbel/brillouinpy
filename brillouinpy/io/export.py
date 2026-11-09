@@ -753,7 +753,10 @@ def from_brim(filepath: str, *, index: int = 0) -> core.SpectralObject:
     try:
         data_group = f.get_data(index)
         PSD, frequency, _psd_units, _frequency_units = data_group.get_PSD_as_spatial_map(broadcast_frequency=False)
-        PSD, frequency = brim.Data.interpolate_spectra(PSD, frequency) # In case frequency is not 1D, interpolate here to generate 1D array
+        if (np.ndim(frequency) > 1) & (hasattr(brim.Data, "interpolate_spectra")):
+            PSD, frequency = brim.Data.interpolate_spectra(PSD, frequency) # In case frequency is not 1D, interpolate here to generate 1D array
+        else:
+            raise AttributeError("Installed brimfile version has no 'Data.interpolate_spectra'. This function is required to handle non-unique frequency axes. Make sure to use brimfile>=1.7.6. if the frequency axis is not 1D.")
 
         try:
             raw_metadata = data_group.get_metadata().all_to_dict()
